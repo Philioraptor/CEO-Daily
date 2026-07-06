@@ -101,7 +101,7 @@ export async function POST(request: Request) {
 
     const todayStrStart = todayStart.toISOString();
     const tomorrowStr = tomorrowStart.toISOString();
-    const scoresToday = allScoresSnapshot.docs.filter(doc => {
+    const scoresToday = allScoresSnapshot.docs.filter((doc: any) => {
       const ca = doc.data().created_at;
       return ca >= todayStrStart && ca < tomorrowStr;
     });
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
     if (isDayComplete) {
       // Calculate average score for the day
       let daySum = 0;
-      scoresToday.forEach(doc => { daySum += doc.data().points_awarded; });
+      scoresToday.forEach((doc: any) => { daySum += doc.data().points_awarded; });
       const avg = daySum / 3;
 
       if (avg >= 80) newTier = 'Visionary';

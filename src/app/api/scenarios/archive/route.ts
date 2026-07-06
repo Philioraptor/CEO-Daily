@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ scenarios: [] });
     }
 
-    const allScenarios = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const allScenarios = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
     
     // Filter out today's and future scenarios
     const pastScenarios = allScenarios.filter((s: any) => s.active_date && s.active_date < today);

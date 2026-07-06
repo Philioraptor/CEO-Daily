@@ -31,13 +31,13 @@ export async function GET(request: Request) {
 
     const todayStrStart = todayStart.toISOString();
     const tomorrowStr = tomorrowStart.toISOString();
-    const scoresToday = allScoresSnapshot.docs.filter(doc => {
+    const scoresToday = allScoresSnapshot.docs.filter((doc: any) => {
       const ca = doc.data().created_at;
       return ca >= todayStrStart && ca < tomorrowStr;
     });
 
     let pointsToday = 0;
-    scoresToday.forEach(doc => {
+    scoresToday.forEach((doc: any) => {
       pointsToday += doc.data().points_awarded;
     });
 

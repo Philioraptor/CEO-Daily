@@ -33,7 +33,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ scenarios: [] });
     }
 
-    const scenarios = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const scenarios = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
 
     const labeledScenarios = scenarios.map((scenario: any) => {
       const options = [
