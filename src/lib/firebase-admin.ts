@@ -5,8 +5,13 @@ import { getAuth } from 'firebase-admin/auth';
 if (!getApps().length) {
   try {
     let serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+      serviceAccountJson = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8');
+    }
+
     if (!serviceAccountJson) {
-      throw new Error('Missing FIREBASE_SERVICE_ACCOUNT_KEY environment variable');
+      throw new Error('Missing FIREBASE_SERVICE_ACCOUNT_KEY or FIREBASE_SERVICE_ACCOUNT_BASE64 environment variable');
     }
     
     // Bulletproof extraction using Regex to bypass any Vercel JSON escaping/quote mangling
