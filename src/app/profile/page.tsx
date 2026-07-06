@@ -90,6 +90,8 @@ export default function Profile() {
 
       {loading ? (
         <div className="text-center text-white/50 py-10">Loading profile...</div>
+      ) : !profile ? (
+        <div className="text-center text-[var(--color-accent-danger)] py-10">Failed to load profile. Please try refreshing.</div>
       ) : (
         <>
             <div className="flex flex-col items-center py-6 text-center">

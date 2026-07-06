@@ -4,9 +4,14 @@ import { getAuth } from 'firebase-admin/auth';
 
 if (!getApps().length) {
   try {
-    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    let serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
     if (!serviceAccountJson) {
       throw new Error('Missing FIREBASE_SERVICE_ACCOUNT_KEY environment variable');
+    }
+    
+    // Strip surrounding single quotes if Vercel includes them
+    if (serviceAccountJson.startsWith("'") && serviceAccountJson.endsWith("'")) {
+      serviceAccountJson = serviceAccountJson.slice(1, -1);
     }
     
     const serviceAccount = JSON.parse(serviceAccountJson);
