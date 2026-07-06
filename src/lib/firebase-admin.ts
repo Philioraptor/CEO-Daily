@@ -24,7 +24,7 @@ if (!getApps().length) {
     if (projectIdMatch && clientEmailMatch && privateKeyMatch) {
       projectId = projectIdMatch[1];
       clientEmail = clientEmailMatch[1];
-      privateKey = privateKeyMatch[1].replace(/\\n/g, '\n').replace(/\n/g, '\n');
+      privateKey = privateKeyMatch[1].replace(/\\+n/g, '\n');
     } else {
       // Fallback if Regex fails
       if (serviceAccountJson.startsWith("'") && serviceAccountJson.endsWith("'")) {
@@ -33,7 +33,7 @@ if (!getApps().length) {
       const parsed = JSON.parse(serviceAccountJson);
       projectId = parsed.project_id;
       clientEmail = parsed.client_email;
-      privateKey = parsed.private_key.replace(/\\n/g, '\n');
+      privateKey = parsed.private_key.replace(/\\+n/g, '\n');
     }
     
     initializeApp({
