@@ -72,7 +72,7 @@ export async function GET(
       const profiles = await adminDb.getAll(...docRefs);
 
       const profileMap = new Map();
-      profiles.forEach(doc => {
+      profiles.forEach((doc: any) => {
         if (doc.exists) {
           profileMap.set(doc.id, doc.data()?.display_name);
         }
