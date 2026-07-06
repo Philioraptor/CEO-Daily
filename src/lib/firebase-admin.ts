@@ -9,23 +9,40 @@ if (!getApps().length) {
       throw new Error('Missing FIREBASE_SERVICE_ACCOUNT_KEY environment variable');
     }
     
-    // Strip surrounding single quotes if Vercel includes them
-    if (serviceAccountJson.startsWith("'") && serviceAccountJson.endsWith("'")) {
-      serviceAccountJson = serviceAccountJson.slice(1, -1);
-    }
+    // Bulletproof extraction using Regex to bypass any Vercel JSON escaping/quote mangling
+    const projectIdMatch = serviceAccountJson.match(/"project_id"\s*:\s*"([^"]+)"/);
+    const clientEmailMatch = serviceAccountJson.match(/"client_email"\s*:\s*"([^"]+)"/);
+    let privateKeyMatch = serviceAccountJson.match(/"private_key"\s*:\s*"([^"]+)"/);
     
-    const serviceAccount = JSON.parse(serviceAccountJson);
-    if (serviceAccount.private_key) {
-      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    let projectId, clientEmail, privateKey;
+    
+    if (projectIdMatch && clientEmailMatch && privateKeyMatch) {
+      projectId = projectIdMatch[1];
+      clientEmail = clientEmailMatch[1];
+      privateKey = privateKeyMatch[1].replace(/\\n/g, '\n').replace(/\n/g, '\n');
+    } else {
+      // Fallback if Regex fails
+      if (serviceAccountJson.startsWith("'") && serviceAccountJson.endsWith("'")) {
+        serviceAccountJson = serviceAccountJson.slice(1, -1);
+      }
+      const parsed = JSON.parse(serviceAccountJson);
+      projectId = parsed.project_id;
+      clientEmail = parsed.client_email;
+      privateKey = parsed.private_key.replace(/\\n/g, '\n');
     }
     
     initializeApp({
-      credential: cert(serviceAccount),
+      credential: cert({
+        projectId,
+        clientEmail,
+        privateKey,
+      }),
     });
   } catch (error) {
-    console.error('Firebase admin initialization error', error);
+    console.error('Firebase admin initialization error:', error);
   }
 }
 
-export const adminDb = getFirestore();
-export const adminAuth = getAuth();
+// Ensure these don't throw at the module level if app failed to initialize
+export const adminDb = getApps().length > 0 ? getFirestore() : null as any;
+export const adminAuth = getApps().length > 0 ? getAuth() : null as any;
