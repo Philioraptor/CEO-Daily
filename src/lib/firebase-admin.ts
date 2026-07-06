@@ -1,61 +1,55 @@
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 
-if (!getApps().length) {
+function getFirebaseAdminApp() {
+  if (getApps().length > 0) {
+    return getApps()[0];
+  }
+
+  const base64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+
+  let serviceAccount: {
+    project_id: string;
+    client_email: string;
+    private_key: string;
+  };
+
   try {
-    let serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
-      serviceAccountJson = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8');
+    if (base64) {
+      // PRIMARY: Use Base64-encoded service account (most reliable on Vercel)
+      const decoded = Buffer.from(base64, 'base64').toString('utf8');
+      serviceAccount = JSON.parse(decoded);
+    } else if (raw) {
+      // FALLBACK: Try parsing the raw JSON string
+      // Handle cases where Vercel wraps in single quotes
+      const cleaned = raw.startsWith("'") && raw.endsWith("'")
+        ? raw.slice(1, -1)
+        : raw;
+      serviceAccount = JSON.parse(cleaned);
+    } else {
+      throw new Error('No Firebase credentials found. Set FIREBASE_SERVICE_ACCOUNT_BASE64 in Vercel env vars.');
     }
 
-    if (!serviceAccountJson) {
-      throw new Error('Missing FIREBASE_SERVICE_ACCOUNT_KEY or FIREBASE_SERVICE_ACCOUNT_BASE64 environment variable');
-    }
-    
-    // Bulletproof extraction using Regex to bypass any Vercel JSON escaping/quote mangling
-    const projectIdMatch = serviceAccountJson.match(/"project_id"\s*:\s*"([^"]+)"/);
-    const clientEmailMatch = serviceAccountJson.match(/"client_email"\s*:\s*"([^"]+)"/);
-    let privateKeyMatch = serviceAccountJson.match(/"private_key"\s*:\s*"([^"]+)"/);
-    
-    let projectId, clientEmail, privateKey;
-    
-    if (projectIdMatch && clientEmailMatch && privateKeyMatch) {
-      projectId = projectIdMatch[1];
-      clientEmail = clientEmailMatch[1];
-      privateKey = privateKeyMatch[1].replace(/\\+n/g, '\n');
-    } else {
-      // Fallback if Regex fails
-      if (serviceAccountJson.startsWith("'") && serviceAccountJson.endsWith("'")) {
-        serviceAccountJson = serviceAccountJson.slice(1, -1);
-      }
-      const parsed = JSON.parse(serviceAccountJson);
-      projectId = parsed.project_id;
-      clientEmail = parsed.client_email;
-      privateKey = parsed.private_key.replace(/\\+n/g, '\n');
-    }
-    
-    initializeApp({
+    // Normalize private key newlines (handles \\n escaped strings)
+    const privateKey = serviceAccount.private_key.replace(/\\n/g, '\n');
+
+    return initializeApp({
       credential: cert({
-        projectId,
-        clientEmail,
+        projectId: serviceAccount.project_id,
+        clientEmail: serviceAccount.client_email,
         privateKey,
       }),
     });
-  } catch (error) {
-    console.error('Firebase admin initialization error:', error);
+  } catch (err) {
+    console.error('[firebase-admin] Failed to initialize:', err);
+    return null;
   }
 }
 
-let db = null as any;
-let auth = null as any;
-try {
-  db = getApps().length > 0 ? getFirestore() : null as any;
-  auth = getApps().length > 0 ? getAuth() : null as any;
-} catch (error) {
-  console.error('Firebase admin service getter error:', error);
-}
+// Initialize once
+const app = getFirebaseAdminApp();
 
-export const adminDb = db;
-export const adminAuth = auth;
+export const adminDb = app ? getFirestore(app) : null;
+export const adminAuth = app ? getAuth(app) : null;

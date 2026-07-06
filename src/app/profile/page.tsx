@@ -20,24 +20,38 @@ export default function Profile() {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
-    if (!token) return;
+    if (!user) return;
 
-    fetch('/api/profile/me', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
+    const fetchProfile = async () => {
+      try {
+        // Always get a fresh token to avoid expiry errors
+        const freshToken = await user.getIdToken(true);
+
+        const res = await fetch('/api/profile/me', {
+          headers: { Authorization: `Bearer ${freshToken}` }
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          console.error('Profile fetch error:', res.status, errData);
+          setLoading(false);
+          return;
+        }
+
+        const data = await res.json();
         setProfile(data);
-        setDisplayName(data.display_name || "");
-        setBio(data.bio || "");
-        setSocialHandle(data.social_handle || "");
+        setDisplayName(data.display_name || '');
+        setBio(data.bio || '');
+        setSocialHandle(data.social_handle || '');
+      } catch (err) {
+        console.error('Profile fetch failed:', err);
+      } finally {
         setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
-      });
-  }, [token]);
+      }
+    };
+
+    fetchProfile();
+  }, [user]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,11 +60,12 @@ export default function Profile() {
     setSaveSuccess(false);
 
     try {
+      const freshToken = await user!.getIdToken(true);
       const res = await fetch('/api/profile/me', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${freshToken}`
         },
         body: JSON.stringify({
           display_name: displayName,
