@@ -48,6 +48,14 @@ if (!getApps().length) {
   }
 }
 
-// Ensure these don't throw at the module level if app failed to initialize
-export const adminDb = getApps().length > 0 ? getFirestore() : null as any;
-export const adminAuth = getApps().length > 0 ? getAuth() : null as any;
+let db = null as any;
+let auth = null as any;
+try {
+  db = getApps().length > 0 ? getFirestore() : null as any;
+  auth = getApps().length > 0 ? getAuth() : null as any;
+} catch (error) {
+  console.error('Firebase admin service getter error:', error);
+}
+
+export const adminDb = db;
+export const adminAuth = auth;
