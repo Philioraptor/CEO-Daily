@@ -31,7 +31,10 @@ function getFirebaseErrorMessage(code: string): string {
     case "auth/invalid-email": return "Please enter a valid email address.";
     case "auth/too-many-requests": return "Too many attempts. Please try again later.";
     case "auth/invalid-credential": return "Invalid email or password.";
-    default: return "Something went wrong. Please try again.";
+    case "auth/unauthorized-domain": return "This domain is not authorized in Firebase. Add your site URL to Firebase Console → Authentication → Settings → Authorized domains.";
+    case "auth/missing-email": return "Please enter your email address.";
+    case "auth/network-request-failed": return "Network error. Check your internet connection.";
+    default: return `Something went wrong (${code || "unknown"}). Please try again.`;
   }
 }
 
