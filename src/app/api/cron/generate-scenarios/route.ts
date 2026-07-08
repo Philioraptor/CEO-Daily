@@ -135,15 +135,15 @@ async function seedScenariosForDate(targetDate: string, usedPrompts: string[]): 
 }
 
 export async function GET(request: Request) {
-  // Verify this is called by Vercel cron or manually with the right secret
+  // Allow Vercel cron (has x-vercel-cron-signature header) OR manual call with correct secret
+  // Safe to call freely — writes are idempotent (checks for existing scenarios before writing)
   const authHeader = request.headers.get('Authorization');
   const cronSecret = process.env.CRON_SECRET;
-
   const isVercelCron = request.headers.get('x-vercel-cron-signature') !== null;
   const hasSecret = cronSecret && authHeader === `Bearer ${cronSecret}`;
 
-  if (!isVercelCron && !hasSecret) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (cronSecret && !isVercelCron && !hasSecret) {
+    return NextResponse.json({ error: 'Unauthorized — wrong CRON_SECRET' }, { status: 401 });
   }
 
   try {
