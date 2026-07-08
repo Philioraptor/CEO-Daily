@@ -6,33 +6,59 @@ import { GlassCard } from "@/components/ui/GlassCard";
 
 type WindowType = 'daily' | 'weekly' | 'monthly';
 
+interface LeaderboardEntry {
+  rank: number;
+  user_id: string;
+  display_name: string;
+  score: number;
+}
+
+interface UserStatus {
+  rank: number | null;
+  score: number;
+}
+
 export default function Leaderboard() {
-  const { token, user } = useAuth();
-  const [window, setWindow] = useState<WindowType>('daily');
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
-  const [userStatus, setUserStatus] = useState<any>(null);
+  const { user } = useAuth();
+  const [activeWindow, setActiveWindow] = useState<WindowType>('daily');
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [userStatus, setUserStatus] = useState<UserStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!user) return;
 
-    setLoading(true);
-    fetch(`/api/leaderboard/${window}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
+    const fetchLeaderboard = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const freshToken = await user.getIdToken(true);
+        const res = await fetch(`/api/leaderboard/${activeWindow}`, {
+          headers: { Authorization: `Bearer ${freshToken}` }
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setError(err.error || 'Failed to load leaderboard');
+          setLoading(false);
+          return;
+        }
+
+        const data = await res.json();
         setLeaderboard(data.leaderboard || []);
         setUserStatus(data.user_status || null);
+      } catch (err) {
+        console.error('[leaderboard] fetch error:', err);
+        setError('Failed to load leaderboard');
+      } finally {
         setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
-      });
-  }, [window, token]);
+      }
+    };
 
-  // Check if current user is in the top 100 to avoid double-rendering their row at the bottom
+    fetchLeaderboard();
+  }, [activeWindow, user]);
+
   const isCurrentUserInTop100 = leaderboard.some(entry => entry.user_id === user?.uid);
 
   return (
@@ -46,9 +72,9 @@ export default function Leaderboard() {
         {(['daily', 'weekly', 'monthly'] as WindowType[]).map((w) => (
           <button
             key={w}
-            onClick={() => setWindow(w)}
+            onClick={() => setActiveWindow(w)}
             className={`flex-1 py-2 text-sm font-medium rounded-lg capitalize transition-all ${
-              window === w ? 'bg-[var(--color-accent-primary)] text-black shadow-md' : 'text-white/60 hover:text-white'
+              activeWindow === w ? 'bg-[var(--color-accent-primary)] text-black shadow-md' : 'text-white/60 hover:text-white'
             }`}
           >
             {w}
@@ -58,29 +84,45 @@ export default function Leaderboard() {
 
       <div className="flex-1 pb-16">
         {loading ? (
-          <div className="text-center text-white/50 py-10">Loading rankings...</div>
+          <div className="flex items-center justify-center py-16">
+            <div className="w-8 h-8 border-2 border-[var(--color-accent-primary)] border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : error ? (
+          <div className="text-center text-red-400 py-10 text-sm">{error}</div>
         ) : leaderboard.length === 0 ? (
-          <div className="text-center text-white/50 py-10">No scores yet for this window.</div>
+          <div className="text-center py-16 space-y-2">
+            <p className="text-white/50">No scores yet for this period.</p>
+            <p className="text-white/30 text-sm">Complete today&apos;s scenarios to appear here!</p>
+          </div>
         ) : (
           <div className="space-y-2">
             {leaderboard.map((entry) => {
               const isMe = entry.user_id === user?.uid;
               return (
-                <div 
-                  key={entry.user_id} 
-                  className={`flex items-center justify-between p-4 rounded-xl border ${
-                    isMe ? 'bg-[var(--color-accent-primary)]/10 border-[var(--color-accent-primary)]/50' : 'bg-[var(--color-bg-panel)]/40 border-white/5'
+                <div
+                  key={entry.user_id}
+                  className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+                    isMe
+                      ? 'bg-[var(--color-accent-primary)]/10 border-[var(--color-accent-primary)]/50'
+                      : 'bg-[var(--color-bg-panel)]/40 border-white/5'
                   }`}
                 >
                   <div className="flex items-center space-x-4">
-                    <span className={`w-6 text-center font-bold ${
-                      entry.rank <= 3 ? 'text-[var(--color-accent-warn)]' : 'text-white/40'
-                    }`}>{entry.rank}</span>
+                    <span className={`w-7 text-center font-bold text-sm ${
+                      entry.rank === 1 ? 'text-yellow-400' :
+                      entry.rank === 2 ? 'text-slate-300' :
+                      entry.rank === 3 ? 'text-amber-600' :
+                      'text-white/40'
+                    }`}>
+                      {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank}
+                    </span>
                     <span className={`font-medium ${isMe ? 'text-[var(--color-accent-primary)]' : 'text-white'}`}>
-                      {entry.display_name}
+                      {entry.display_name} {isMe && <span className="text-xs text-white/40">(you)</span>}
                     </span>
                   </div>
-                  <span className="font-bold">{entry.score} <span className="text-[10px] text-white/40 font-normal ml-1">pts</span></span>
+                  <span className="font-bold">
+                    {entry.score} <span className="text-[10px] text-white/40 font-normal ml-1">pts</span>
+                  </span>
                 </div>
               );
             })}
@@ -94,10 +136,12 @@ export default function Leaderboard() {
           <div className="max-w-md mx-auto">
             <GlassCard className="flex items-center justify-between p-4 bg-[var(--color-accent-primary)]/20 border-[var(--color-accent-primary)] shadow-2xl backdrop-blur-xl">
               <div className="flex items-center space-x-4">
-                <span className="w-6 text-center font-bold text-white/60">{userStatus.rank}</span>
+                <span className="w-7 text-center font-bold text-white/60 text-sm">#{userStatus.rank}</span>
                 <span className="font-bold text-white">You</span>
               </div>
-              <span className="font-bold">{userStatus.score} <span className="text-[10px] text-white/40 font-normal ml-1">pts</span></span>
+              <span className="font-bold">
+                {userStatus.score} <span className="text-[10px] text-white/40 font-normal ml-1">pts</span>
+              </span>
             </GlassCard>
           </div>
         </div>

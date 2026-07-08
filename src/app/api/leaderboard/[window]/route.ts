@@ -9,14 +9,18 @@ export async function GET(
   { params }: { params: Promise<{ window: string }> }
 ) {
   try {
+    if (!adminAuth || !adminDb) {
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 503 });
+    }
+
     const { window } = await params;
-    
+
     if (!['daily', 'weekly', 'monthly'].includes(window)) {
       return NextResponse.json({ error: 'Invalid window' }, { status: 400 });
     }
 
     const authHeader = request.headers.get('Authorization');
-    if (!authHeader) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -24,57 +28,54 @@ export async function GET(
     let decodedToken;
     try {
       decodedToken = await adminAuth.verifyIdToken(token);
-    } catch (e) {
+    } catch {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const uid = decodedToken.uid;
 
     // Determine the current Redis key based on the window
-    const todayStart = new Date();
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
     let redisKey = '';
-    const todayStr = todayStart.toISOString().split('T')[0];
 
     if (window === 'daily') {
       redisKey = `lb:daily:${todayStr}`;
     } else if (window === 'weekly') {
-      const [year, week] = getYearAndWeek(todayStart);
+      const [year, week] = getYearAndWeek(now);
       redisKey = `lb:weekly:${year}-W${week}`;
     } else if (window === 'monthly') {
-      redisKey = `lb:monthly:${todayStart.getFullYear()}-${todayStart.getMonth() + 1}`;
+      redisKey = `lb:monthly:${now.getFullYear()}-${now.getMonth() + 1}`;
     }
 
-    // 1. Fetch top 100
-    // ZRANGE with rev: true
-    const top100Raw = await redis.zrange<string[]>(redisKey, 0, 99, { rev: true, withScores: true });
-    
-    const top100 = [];
-    for (let i = 0; i < top100Raw.length; i += 2) {
-      top100.push({
-        user_id: top100Raw[i],
-        score: Number(top100Raw[i + 1]),
-      });
-    }
+    // 1. Fetch top 100 — Upstash returns [{member, score}] objects when withScores: true
+    const rawResults = await redis.zrange(redisKey, 0, 99, { rev: true, withScores: true });
 
-    // 2. Fetch current user's rank
+    // Upstash zrange with withScores returns Array<{member: string, score: number}>
+    const top100 = (rawResults as { member: string; score: number }[]).map((item) => ({
+      user_id: item.member,
+      score: Number(item.score),
+    }));
+
+    // 2. Fetch current user's rank and score
     const userRankRaw = await redis.zrevrank(redisKey, uid);
     const userScoreRaw = await redis.zscore(redisKey, uid);
-    
-    const userRank = userRankRaw !== null ? userRankRaw + 1 : null; // +1 because rank is 0-indexed
+
+    const userRank = userRankRaw !== null ? userRankRaw + 1 : null;
     const userScore = userScoreRaw !== null ? Number(userScoreRaw) : 0;
 
-    // 3. Resolve display names for the top 100 from Firestore
-    let leaderboard: any[] = [];
-    if (top100.length > 0) {
-      const userIds = top100.map(t => t.user_id);
-      const docRefs = userIds.map(id => adminDb.collection('profiles').doc(id));
-      
-      const profiles = await adminDb.getAll(...docRefs);
+    // 3. Resolve display names from Firestore
+    let leaderboard: { rank: number; user_id: string; display_name: string; score: number }[] = [];
 
-      const profileMap = new Map();
-      profiles.forEach((doc: any) => {
+    if (top100.length > 0) {
+      const userIds = top100.map((t) => t.user_id);
+      const docRefs = userIds.map((id) => adminDb!.collection('profiles').doc(id));
+      const profiles = await adminDb!.getAll(...docRefs);
+
+      const profileMap = new Map<string, string>();
+      profiles.forEach((doc: FirebaseFirestore.DocumentSnapshot) => {
         if (doc.exists) {
-          profileMap.set(doc.id, doc.data()?.display_name);
+          profileMap.set(doc.id, doc.data()?.display_name || 'Anonymous CEO');
         }
       });
 
@@ -90,12 +91,12 @@ export async function GET(
       leaderboard,
       user_status: {
         rank: userRank,
-        score: userScore
-      }
+        score: userScore,
+      },
     });
 
   } catch (error) {
-    console.error('Unhandled leaderboard error:', error);
+    console.error('[leaderboard] Unhandled error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
