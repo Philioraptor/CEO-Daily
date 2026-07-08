@@ -9,6 +9,8 @@ export async function GET() {
   checks['FIREBASE_SERVICE_ACCOUNT_KEY'] = process.env.FIREBASE_SERVICE_ACCOUNT_KEY ? 'SET' : 'MISSING';
   checks['FIREBASE_SERVICE_ACCOUNT_BASE64'] = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ? 'SET' : 'MISSING';
   checks['UPSTASH_REDIS_REST_URL'] = process.env.UPSTASH_REDIS_REST_URL ? 'SET' : 'MISSING';
+  checks['GEMINI_API_KEY'] = process.env.GEMINI_API_KEY ? 'SET' : 'MISSING';
+  checks['CRON_SECRET'] = process.env.CRON_SECRET ? 'SET' : 'MISSING';
 
   // 2. Try to import firebase-admin and check initialization
   let firebaseStatus = 'NOT_INITIALIZED';
