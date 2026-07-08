@@ -48,14 +48,16 @@ export async function GET(
       redisKey = `lb:monthly:${now.getFullYear()}-${now.getMonth() + 1}`;
     }
 
-    // 1. Fetch top 100 — Upstash returns [{member, score}] objects when withScores: true
-    const rawResults = await redis.zrange(redisKey, 0, 99, { rev: true, withScores: true });
+    // 1. Fetch top 100 — Upstash returns a flat array [member1, score1, member2, score2] when withScores: true
+    const rawResults = await redis.zrange<string[]>(redisKey, 0, 99, { rev: true, withScores: true });
 
-    // Upstash zrange with withScores returns Array<{member: string, score: number}>
-    const top100 = (rawResults as { member: string; score: number }[]).map((item) => ({
-      user_id: item.member,
-      score: Number(item.score),
-    }));
+    const top100 = [];
+    for (let i = 0; i < rawResults.length; i += 2) {
+      top100.push({
+        user_id: rawResults[i],
+        score: Number(rawResults[i + 1]),
+      });
+    }
 
     // 2. Fetch current user's rank and score
     const userRankRaw = await redis.zrevrank(redisKey, uid);
