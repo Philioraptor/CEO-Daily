@@ -9,6 +9,7 @@ export async function GET() {
   checks['FIREBASE_SERVICE_ACCOUNT_KEY'] = process.env.FIREBASE_SERVICE_ACCOUNT_KEY ? 'SET' : 'MISSING';
   checks['FIREBASE_SERVICE_ACCOUNT_BASE64'] = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ? 'SET' : 'MISSING';
   checks['UPSTASH_REDIS_REST_URL'] = process.env.UPSTASH_REDIS_REST_URL ? 'SET' : 'MISSING';
+  checks['UPSTASH_REDIS_REST_TOKEN'] = process.env.UPSTASH_REDIS_REST_TOKEN ? 'SET' : 'MISSING';
   checks['GEMINI_API_KEY'] = process.env.GEMINI_API_KEY ? 'SET' : 'MISSING';
   checks['CRON_SECRET'] = process.env.CRON_SECRET ? 'SET' : 'MISSING';
 
@@ -33,11 +34,22 @@ export async function GET() {
     dbStatus = 'ERROR: ' + (err instanceof Error ? err.message : String(err));
   }
 
+  // 4. Test Redis connectivity
+  let redisStatus = 'UNKNOWN';
+  try {
+    const { redis } = await import('@/lib/redis');
+    await redis.ping();
+    redisStatus = 'CONNECTED';
+  } catch (err: unknown) {
+    redisStatus = 'ERROR: ' + (err instanceof Error ? err.message : String(err));
+  }
+
   return NextResponse.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     env: checks,
     firebase: { status: firebaseStatus, error: firebaseError },
     db: dbStatus,
+    redis: redisStatus,
   });
 }
